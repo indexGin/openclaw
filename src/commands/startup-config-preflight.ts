@@ -152,9 +152,12 @@ async function prepareStartupConfig(
         return result(read);
       }
     }
-    const { HISTORICAL_WEBHOOK_CHANNELS, recordUnwrittenWebhookCompletion } =
-      await import("./doctor/shared/legacy-webhook-pins.js");
-    const webhookCompletion = read.snapshot.sourceConfig.meta?.migrations?.webhookListeners;
+    const {
+      HISTORICAL_WEBHOOK_CHANNELS,
+      readHistoricalWebhookCompletion,
+      recordUnwrittenWebhookCompletion,
+    } = await import("./doctor/shared/legacy-webhook-pins.js");
+    const webhookCompletion = readHistoricalWebhookCompletion(read.snapshot.sourceConfig, env);
     if (
       webhookCompletion !== true &&
       !HISTORICAL_WEBHOOK_CHANNELS.every((id) => Object.hasOwn(webhookCompletion ?? {}, id))
