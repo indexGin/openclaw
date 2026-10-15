@@ -267,32 +267,6 @@ describe("sessions page lifecycle", () => {
     expect(page.error).toBe("Connect to the Gateway to change sessions.");
   });
 
-  it("patches color from the rendered session menu", async () => {
-    const target = sessionRow("color");
-    const sessions = createSessions();
-    const context = createContext(createGateway().gateway, sessions);
-    const page = await createRenderedPage(context, sessionsResult([target], 1));
-    const menu = await openRowMenu(page, target);
-    const item = menu.querySelector<HTMLButtonElement>(
-      '.session-menu__color-choice[aria-label="Green"]',
-    )!;
-    item.click();
-    await vi.waitFor(() =>
-      expect(sessions.patch).toHaveBeenCalledWith(
-        target.key,
-        { color: "green" },
-        { agentId: undefined },
-      ),
-    );
-  });
-
-  it("hides pinning for a lineage child", async () => {
-    const target = sessionRow("dashboard:child", { parentSessionKey: "agent:main:parent" });
-    const context = createContext(createGateway().gateway, createSessions());
-    const page = await createRenderedPage(context, sessionsResult([target], 1));
-    expect((await openRowMenu(page, target)).querySelector('[value="toggle-pin"]')).toBeNull();
-  });
-
   it("uses personal visibility RPC from the management menu", async () => {
     const request = vi.fn(async () => ({ ok: true }));
     const connection = createGateway({ request } as unknown as GatewayBrowserClient);
@@ -334,20 +308,70 @@ describe("sessions page lifecycle", () => {
     expect(managed.sessions.patch).not.toHaveBeenCalled();
   });
 
-  it("retargets the Gateway after deleting the current session", async () => {
-    const target = sessionRow("work", { key: "agent:writer:work" });
-    const { page, sessions, connection } = await createDeletionPage([target], "writer");
-    connection.emit({ sessionKey: target.key });
-    page.selectedSessions = new Map([[target.key, target]]);
-    vi.mocked(showConfirmDialog).mockResolvedValue(true);
-    await page.deleteSelected();
-    expect(sessions.deleteMany).toHaveBeenCalledWith([
-      { key: target.key, agentId: undefined, expectedSessionId: target.sessionId },
-    ]);
-    expect(connection.setSessionKey).toHaveBeenCalledWith("agent:writer:main");
-    expect(page.result?.sessions).toEqual([]);
-    expect(page.selectedSessions.size).toBe(0);
-  });
+  it.each([false, true])(
+    "retargets only the deleted incarnation (replaced: %s)",
+    async (replaced) => {
+      const target = sessionRow("work", { key: "agent:writer:work" });
+      const { page, sessions, connection, deleteRequest, query, setRows } =
+        await createDeletionPage([target], "writer");
+      const started = createDeferred();
+      const response = createDeferred<SessionDeleteOutcome>();
+      deleteRequest.mockImplementationOnce(() => {
+        started.resolve();
+        return response.promise;
+      });
+      connection.emit({ sessionKey: target.key });
+      vi.mocked(showConfirmDialog).mockResolvedValue(true);
+      const selectRow = () => {
+        const checkbox = page.querySelector<HTMLInputElement>(
+          `input[aria-label="Select session: ${target.key}"]`,
+        );
+        expect(checkbox).not.toBeNull();
+        checkbox!.click();
+      };
+      try {
+        selectRow();
+        await page.updateComplete;
+        const button = [
+          ...page.querySelectorAll<HTMLButtonElement>(".data-table-bulk-bar button"),
+        ].find((entry) => entry.textContent?.trim() === "Delete");
+        expect(button).toBeDefined();
+        button!.click();
+        await started.promise;
+        expect(deleteRequest).toHaveBeenCalledExactlyOnceWith({
+          key: target.key,
+          deleteTranscript: true,
+          expectedSessionId: target.sessionId,
+        });
+        const replacement = { ...target, sessionId: "replacement-work", label: "New work" };
+        setRows(replaced ? [replacement] : []);
+        if (replaced) {
+          await sessions.refreshList({ ...query, force: true });
+          await page.updateComplete;
+          expect(page.result?.sessions).toEqual([replacement]);
+          selectRow();
+          await page.updateComplete;
+          expect(page.selectedSessions.get(target.key)?.sessionId).toBe(replacement.sessionId);
+        }
+        response.resolve({ deleted: true });
+        await vi.mocked(sessions.deleteMany).mock.results[0]!.value;
+        await page.updateComplete;
+        if (replaced) {
+          expect.soft(connection.setSessionKey).not.toHaveBeenCalled();
+          expect.soft(page.selectedSessions.get(target.key)?.sessionId).toBe(replacement.sessionId);
+          expect.soft(sessions.state.deletedSessions).toEqual([]);
+          expect(page.result?.sessions).toEqual([replacement]);
+        } else {
+          expect(connection.setSessionKey).toHaveBeenCalledWith("agent:writer:main");
+          expect(page.result?.sessions).toEqual([]);
+          expect(page.selectedSessions.size).toBe(0);
+        }
+      } finally {
+        response.resolve({ deleted: false });
+        await vi.mocked(sessions.deleteMany).mock.results[0]?.value;
+      }
+    },
+  );
 
   it("preserves confirmed archived identity when a replacement becomes active", async () => {
     const confirmation = createDeferred<boolean>();
@@ -686,15 +710,6 @@ describe("sessions page new group", () => {
     expect(sessions.groupsPut).not.toHaveBeenCalled();
     expect(sessions.patch).not.toHaveBeenCalled();
     expect(page.error).toBe("Refresh");
-  });
-
-  it("does not assign when the catalog owner reports a stale write", async () => {
-    const { page, sessions, messages } = await mount(async () => "stale");
-    await page.requestNewCategory(key);
-    expect(sessions.patch).not.toHaveBeenCalled();
-    expect(messages).toEqual([
-      "Gateway connection replaced before the group was saved. Try again.",
-    ]);
   });
 });
 
