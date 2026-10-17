@@ -164,7 +164,6 @@
   color: var(--muted);
   box-shadow: var(--shell-chrome-control-shadow, var(--shadow-sm));
   backdrop-filter: var(--shell-chrome-control-backdrop, blur(10px));
-  -webkit-backdrop-filter: var(--shell-chrome-control-backdrop, blur(10px));
 }
 
 .shell-chrome-controls__button:hover:not(:disabled, [aria-disabled="true"]) {
@@ -874,7 +873,6 @@ openclaw-settings-save-indicator:empty {
   border-bottom: 1px solid color-mix(in srgb, var(--border) 74%, transparent);
   background: color-mix(in srgb, var(--bg) 82%, transparent);
   backdrop-filter: blur(12px) saturate(1.6);
-  -webkit-backdrop-filter: blur(12px) saturate(1.6);
 }
 
 .topnav-shell {
@@ -1349,9 +1347,6 @@ openclaw-settings-save-indicator:empty {
   --sidebar-scroll-edge: right;
 
   /* The second layer keeps the native scrollbar out of the content fade. */
-  -webkit-mask:
-    var(--sidebar-body-mask),
-    linear-gradient(black, black) var(--sidebar-scroll-edge) / var(--scrollbar-size) 100% no-repeat;
   mask:
     var(--sidebar-body-mask),
     linear-gradient(black, black) var(--sidebar-scroll-edge) / var(--scrollbar-size) 100% no-repeat;
@@ -2559,17 +2554,6 @@ openclaw-settings-save-indicator:empty {
   border-top: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
 }
 
-wa-dropdown.session-menu,
-wa-dropdown.sidebar-session-sort-menu {
-  position: fixed;
-  z-index: 121;
-}
-
-wa-dropdown.session-menu::part(menu) {
-  min-width: 224px;
-  max-width: 264px;
-}
-
 /* Popover hosts live in the top layer so menus escape in-page stacking
    contexts (e.g. the sidebar resizer above the nav); the host itself must
    stay a zero-size shell around its fixed-position menu. */
@@ -2585,8 +2569,7 @@ openclaw-session-menu[popover] {
   background: transparent;
 }
 
-.sidebar-session-sort-menu:not(wa-dropdown),
-wa-dropdown.sidebar-session-sort-menu::part(menu) {
+.sidebar-session-sort-menu {
   min-width: 176px;
   max-width: 220px;
   padding: var(--menu-padding);
@@ -2594,9 +2577,6 @@ wa-dropdown.sidebar-session-sort-menu::part(menu) {
   border-radius: var(--menu-radius);
   background: var(--bg-elevated);
   box-shadow: var(--overlay-shadow);
-}
-
-.sidebar-session-sort-menu:not(wa-dropdown) {
   position: fixed;
   z-index: 121;
   animation: menu-in 140ms var(--ease-out);
@@ -2641,6 +2621,7 @@ wa-dropdown.sidebar-session-sort-menu::part(menu) {
    letters and digits share one rail. Identity-menu chords use the system UI face
    below because theme body fonts are not guaranteed to cover modifier glyphs. */
 .session-menu__shortcut,
+.side-panel-type-option__shortcut,
 .chat-controls__model-option-action kbd {
   flex: 0 0 auto;
   min-width: 12px;
@@ -2651,7 +2632,13 @@ wa-dropdown.sidebar-session-sort-menu::part(menu) {
   text-align: center;
 }
 
-.sidebar-identity-menu .session-menu__shortcut {
+.session-menu__shortcut,
+.side-panel-type-option__shortcut {
+  text-align: end;
+}
+
+.sidebar-identity-menu .session-menu__shortcut,
+.side-panel-type-option__shortcut {
   font-family: var(--font-shortcut);
 }
 

@@ -294,7 +294,26 @@ export function assistantVisibleTextFilters(
     preserve ? leadingEmptyLinesTextFilter : trimTextFilter(trim, { preserveCodeIndentation }),
     {
       transform: stripInvisibleAssistantText,
-      create: () => createConditionalTextProjector(stripInvisibleAssistantText, () => true),
+      create: () => {
+        let visible = false;
+        let trailingHighSurrogate = "";
+        return createConditionalTextProjector(
+          () => "",
+          (input) => {
+            if (!visible) {
+              const appended = trailingHighSurrogate + (input.delta ?? input.text);
+              // A split supplementary character cannot permanently establish visibility yet.
+              trailingHighSurrogate = /[\uD800-\uDBFF]$/.test(appended) ? appended.slice(-1) : "";
+              visible = Boolean(
+                stripInvisibleAssistantText(
+                  trailingHighSurrogate ? appended.slice(0, -1) : appended,
+                ),
+              );
+            }
+            return !visible;
+          },
+        );
+      },
     },
   );
   profileFilters.set(key, filters);
@@ -400,11 +419,6 @@ export function stripAssistantInternalScaffolding(text: string): string {
  */
 export function sanitizeAssistantVisibleText(text: string): string {
   return sanitizeAssistantVisibleTextWithProfile(text, "delivery");
-}
-
-/** Sanitizes text already marked as final-answer prose by the agent runtime. */
-export function sanitizeAssistantFinalAnswerText(text: string): string {
-  return sanitizeAssistantVisibleTextWithProfile(text, "final-answer-delivery");
 }
 
 /**

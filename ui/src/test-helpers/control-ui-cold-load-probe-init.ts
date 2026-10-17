@@ -39,6 +39,7 @@ export type ChatOwnerRecord = {
 };
 
 export type ColdLoadProbeInput = {
+  ownerProbes?: boolean;
   latencyMs: number;
   frameGapMs: number;
   events: Array<{ event: string; payload: unknown }>;
@@ -48,6 +49,10 @@ export type ColdLoadProbeInput = {
     event: string;
     payload: unknown;
     history?: { text?: string; message?: unknown };
+    sessionMutation?: {
+      upsert?: import("../api/types.ts").GatewaySessionRow[];
+      removeKeys?: string[];
+    };
   }>;
   liveHistory?: {
     sessionId: string;
